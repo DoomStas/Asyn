@@ -1,0 +1,22 @@
+# Build output
+bin/
+obj/
+
+# JetBrains Rider
+.idea/
+
+# macOS
+.DS_Store
+
+# NuGet
+*.nupkg
+*.snupkg
+project.lock.json
+packages/
+
+# Generated data files
+*.csv
+
+# User-specific
+*.user
+*.suo
