@@ -2,17 +2,6 @@ using System.Diagnostics;
 using System.Globalization;
 
 namespace Asyn;
-
-public class SaleRecord
-{
-    public DateTime Date { get; set; }
-    public string Region { get; set; }
-    public string Product { get; set; }
-    public int Quantity { get; set; }
-    public decimal Price { get; set; }
-    public decimal TotalSum => Price * Quantity;
-}
-
 class Program
 {
     private static readonly string FilePath = "sales.csv";
@@ -21,7 +10,7 @@ class Program
     static async Task Main(string[] args)
     {
         //1.Generation file
-        GenerateSalesFileIfNotExist(500_000);
+        SalesGenerator.GenerateSalesFileIfNotExist(FilePath,500_000);
 
         using var cts = new CancellationTokenSource();
         Console.WriteLine("Press Ctrl+C to exit");
@@ -34,7 +23,8 @@ class Program
 
         Console.WriteLine("Loading file in fone");
 
-        Task<List<SaleRecord>> loadTask = Task.Run(() => LoadSalesData(FilePath, cts.Token));
+        var dataService = new FileSalesDataService();
+        Task<List<SaleRecord>> loadTask = dataService.LoadSalesDataAsync(FilePath, cts.Token);
 
         Console.WriteLine("Loading file... - enter parameters: ");
 
@@ -75,7 +65,7 @@ class Program
 
             Console.WriteLine($"Records found: {filteredSales.Count}");
 
-            await SaveFilteredDataAsync(OutputPath, filteredSales, cts.Token);
+            await dataService.SaveFilteredDataAsync(OutputPath, filteredSales, cts.Token);
             sw.Stop();
             Console.WriteLine($"Result saved to: {OutputPath}");
             Console.WriteLine($"Filtration and saving completed in: {sw.Elapsed}");
@@ -86,73 +76,4 @@ class Program
             Console.WriteLine($"Error: {e.Message}");
         }
     }
-
-    private static List<SaleRecord> LoadSalesData(string path, CancellationToken cancellationToken)
-    {
-        var list = new List<SaleRecord>(500_000);
-        using var reader = new StreamReader(path);
-
-        string header = reader.ReadLine();
-
-        while (!reader.EndOfStream)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            string line = reader.ReadLine();
-            string[] parts = line.Split(',');
-
-            var record = new SaleRecord
-            {
-                Date = DateTime.ParseExact(parts[0].Trim(), "yyyy-MM-dd", null),
-                Region = parts[1].Trim(),
-                Product = parts[2].Trim(),
-                Quantity = int.Parse(parts[3].Trim(), CultureInfo.InvariantCulture),
-                Price = decimal.Parse(parts[4].Trim(), CultureInfo.InvariantCulture),
-            };
-            list.Add(record);
-        }
-
-        return list;
-    }
-
-    private static async Task SaveFilteredDataAsync(string path, List<SaleRecord> data,
-        CancellationToken cancellationToken)
-    {
-        using var writer = new StreamWriter(path);
-        await writer.WriteLineAsync("Date,Region,Product,Quantity,Price");
-        
-        foreach (var item in data)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            string line = $"{item.Date:yyyy-MM-dd},{item.Region},{item.Product},{item.Quantity},{item.Price}";
-            await writer.WriteLineAsync(line.AsMemory(), cancellationToken);
-        }
-    }
-
-    private static void GenerateSalesFileIfNotExist(int rowCount)
-    {
-        if (File.Exists(FilePath)) return;
-        Console.WriteLine($"[Generator] File {FilePath} not found. Generation {rowCount} rows");
-        
-        string[] regions = { "Київ", "Львів", "Одеса", "Харків", "Дніпро" };
-        string[] products = { "Ноутбук", "Мишка", "Клавіатура", "Монітор", "Навушники" };
-        var rand =  new Random();
-
-        using (var writer = new StreamWriter(FilePath))
-        {
-            writer.WriteLine("Date,Region,Product,Quantity,Price");
-            for (int i = 0; i < rowCount; i++)
-            {
-                DateTime date = DateTime.Today.AddDays(-rand.Next(1, 365));
-                string region = regions[rand.Next(regions.Length)];
-                string product = products[rand.Next(products.Length)];
-                int quantity = rand.Next(1, 10);
-                decimal price = rand.Next(300, 45000);
-                
-                writer.WriteLine($"{date:yy-MM-dd},{region},{product},{quantity},{price}");
-            }
-        }
-        Console.WriteLine($"[Generator] File {FilePath} generated successfully.");
-    }
-
 }
